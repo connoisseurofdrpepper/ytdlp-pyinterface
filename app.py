@@ -1476,11 +1476,16 @@ class App(tb.Window):
                 date_after = datetime.now() - timedelta(days=days)
                 base_args.extend(["--dateafter", date_after.strftime('%Y%m%d')])
 
+        new_item_ids = []
         for url in urls_to_process:
-            self._add_url_to_queue(url, preset_args=base_args)
+            iid = self._add_url_to_queue(url, preset_args=base_args)
+            new_item_ids.append(iid)
         
         if self.view_mode == 'output':
             self._switch_view()
+        
+        if new_item_ids:
+            self.after(1000, lambda: self._start_download(items_to_download=new_item_ids))
 
     def _prevent_resize_cursor(self, event):
         if self.tree.identify_region(event.x, event.y) == "separator":
@@ -1743,6 +1748,7 @@ class App(tb.Window):
             threading.Thread(target=self._fetch_metadata, args=(iid, url), daemon=True).start()
         
         self._update_queue_actions_menu()
+        return iid
 
     def _fetch_metadata(self, iid, url):
         ytdlp_exe = self.cfg.get("ytdlp_path") or "yt-dlp"
@@ -1864,8 +1870,12 @@ class App(tb.Window):
                 self.tree.delete(item_id)
         self._update_queue_actions_menu()
 
-    def _start_download(self):
-        selected_items = self.tree.selection()
+    def _start_download(self, event=None, items_to_download=None):
+        if items_to_download:
+            selected_items = items_to_download
+        else:
+            selected_items = self.tree.selection()
+
         if not selected_items:
             selected_items = [iid for iid in self.tree.get_children() if self.tree.item(iid, "values")[4] == "Queued"]
             if not selected_items:
